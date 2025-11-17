@@ -44,11 +44,19 @@ class sentimentDataset(Dataset):
     def __len__(self):
         return len(self.text)
     def __getitem__(self, index):
-        encoding = self.tokenizer(self.data[index], truncation=True, padding="max_length", max_length=self.maxLength, return_tensors="pt") 
+        encoding = self.tokenizer(self.text[index], truncation=True, padding="max_length", max_length=self.maxLength, return_tensors="pt") 
         label = self.label[index]
         token = encoding["input_ids"].squeeze(0)
         mask = encoding["attention_mask"].squeeze(0)
         return {"input_ids": token, "attention_mask": mask, "labels": torch.tensor(label)} 
+    
+class sentimentConfig(PretrainedConfig):
+    def __init__(self, model: str, labelNum=3, head="mlp", **kwargs):
+        super().__init__(**kwargs)
+        self.model = model
+        self.labelNum = labelNum
+        self.head = head
+
 
 def train(
     modelName: str,
@@ -59,17 +67,27 @@ def train(
     epochs: int,
     batchSize: int,
     maxLength: int,
-    seed: int = 42,
     lrEncoder: float,
     lrHead: float,
     dropout: float,
-    warmupRatio: float
+    warmupRatio: float,
+    seed: int = 42
 ):   
     setSeed(seed)
     os.makedirs(outDir, exist_ok=True)
 
     tokenizer = AutoTokenizer.from_pretrained("distilbert/distilbert-base-uncased-finetuned-sst-2-english")
-    model = AutoModel.from_pretrained("distilbert/distilbert-base-uncased-finetuned-sst-2-english")
+    trainDs = sentimentDataset(train_csv, tokenizer, maxLength)
+    testDs = sentimentDataset(test_csv, tokenizer, maxLength)
+    valDs = sentimentDataset(val_csv, tokenizer, maxLength)
+    trainDl = DataLoader(trainDs, batchSize, shuffle=True)
+    testDl = DataLoader(testDs, batchSize, shuffle=True)
+    vlaDl = DataLoader(valDs, batchSize, shuffle=True)
+    
+    
+    model = AutoModel.from_pretrained()
+    config = sentimentConfig(model)
+
 
     
 
@@ -102,11 +120,13 @@ def main():
     setSeed(args.seed)
     fullData = pd.read_csv(args.train_csv)
     trainData, validData = train_test_split(fullData, test_size=0.1, random_state=args.seed, stratify=fullData["label"])
-    os.makedirs(args.out_dir, exist_ok=True)
-    trainSplitPath = os.path.join(args.out_dir, "train_split.csv")
-    validSplitPath = os.path.join(args.out_dir, "val_split.csv")
+    os.makedirs(args.outDir, exist_ok=True)
+    trainSplitPath = os.path.join(args.outDir, "train_split.csv")
+    validSplitPath = os.path.join(args.outDir, "val_split.csv")
     trainData.to_csv(trainSplitPath, index=False)
     validData.to_csv(validSplitPath, index=False)
+
+    
 
 if __name__ == "__main__":
     main()
