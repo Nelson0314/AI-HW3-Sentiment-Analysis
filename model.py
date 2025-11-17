@@ -34,6 +34,22 @@ def setSeed(seed: int=42):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed) 
 
+class sentimentDataset(Dataset):
+    def __init__(self, dataPath: str, tokenizer: AutoTokenizer, maxLength: int):
+        self.data = pd.read_csv(dataPath)
+        self.text = self.data["text"].tolist()
+        self.label = self.data["label"].tolist()
+        self.tokenizer = tokenizer
+        self.maxLength = maxLength
+    def __len__(self):
+        return len(self.text)
+    def __getitem__(self, index):
+        encoding = self.tokenizer(self.data[index], truncation=True, padding="max_length", max_length=self.maxLength, return_tensors="pt") 
+        label = self.label[index]
+        token = encoding["input_ids"].squeeze(0)
+        mask = encoding["attention_mask"].squeeze(0)
+        return {"input_ids": token, "attention_mask": mask, "labels": torch.tensor(label)} 
+
 def train(
     modelName: str,
     train_csv: str,
@@ -54,6 +70,8 @@ def train(
 
     tokenizer = AutoTokenizer.from_pretrained("distilbert/distilbert-base-uncased-finetuned-sst-2-english")
     model = AutoModel.from_pretrained("distilbert/distilbert-base-uncased-finetuned-sst-2-english")
+
+    
 
 def main():
     parser = argparse.ArgumentParser()
