@@ -64,8 +64,33 @@ class sentimentClassfier(PreTrainedModel):
         self.encoder = AutoModel.from_pretrained(config.model)
         self.hiddenSize = self.encoder.config.hidden_size
         self.norm = nn.LayerNorm(self.hiddenSize)
-        self.head = config.head
         self.labelNum = config.labelNum
+        self.headType = config.head
+        self.head = CustomMLP(self.hiddenSize, self.labelNum)
+        self.loss = nn.CrossEntropyLoss()
+        #self.dropout =
+    def forward(self, inputIds, attentionMask=None, labels=None):
+        output = self.encoder(input_ids=inputIds, attention_mask=attentionMask)
+        feature = output.last_hidden_state 
+        feature = feature[:, 0, :]
+        #feature = self.dropout(self.norm(feature))
+        logits = self.head(feature)
+        results = {"logits": logits}
+        if labels is not None:
+            results["loss"] = self.loss(logits, labels)
+            return results
+
+class CustomMLP(nn.Module):
+    def __init__(self, inputDim, hiddenDim):
+        super().__init__()
+        self.f1 = nn.Linear(inputDim, hiddenDim)
+        self.f2 = nn.Linear(hiddenDim, inputDim)
+        self.relu = nn.ReLU()
+    def forward(self, x):
+        out = self.f1(x)
+        out = self.relu(out)
+        out = self.f2(out)
+        return out
 
 def train(
     modelName: str,
@@ -85,7 +110,7 @@ def train(
     setSeed(seed)
     os.makedirs(outDir, exist_ok=True)
 
-    tokenizer = AutoTokenizer.from_pretrained("distilbert/distilbert-base-uncased-finetuned-sst-2-english")
+    tokenizer = AutoTokenizer.from_pretrained(modelName)
     trainDs = sentimentDataset(train_csv, tokenizer, maxLength)
     testDs = sentimentDataset(test_csv, tokenizer, maxLength)
     valDs = sentimentDataset(val_csv, tokenizer, maxLength)
@@ -93,15 +118,26 @@ def train(
     testDl = DataLoader(testDs, batchSize, shuffle=True)
     vlaDl = DataLoader(valDs, batchSize, shuffle=True)
     
-    config = sentimentConfig("distilbert/distilbert-base-uncased-finetuned-sst-2-english")
-    classifier = sentimentClassfier(config)
-    print(classifier.hiddenSize)
-
-
-
+    config = sentimentConfig(modelName)
+    classifier = sentimentClassfier(config).to(DEVICE)
     
+    for epoch in range(1, epochs + 1):
+        classifier.train()
+        runningLoss = 0.0
+        pbar = tqdm(trainDl, desc=f"Epoch {epoch}/{epochs}")
+        for batch in pbar:
+            inputIds = batch["input_ids"].to(DEVICE)
+            attentionMask = batch["attention_mask"].to(DEVICE)
+            labels = batch["labels"].to(DEVICE)
+
+            output = classifier(inputIds=inputIds, attentionMask=attentionMask, labels=labels)
+            loss = output["loss"]
+            loss.backward()
+            runningLoss +=  loss.item()
+            pbar.set_postfix(loss=f"{runningLoss / (pbar.n or 1):.4f}")
 
 def main():
+    print(f"正在使用的裝置: {DEVICE}")
     parser = argparse.ArgumentParser()
     # file paths
     parser.add_argument("--train_csv", type=str, default="./dataset/train.csv")
@@ -109,19 +145,19 @@ def main():
     parser.add_argument("--outDir", type=str, default="./saved_models/") # DO NOT change the file name [cite: 1019]
     
     # model / data
-    parser.add_argument("--modelName", type=str, default="...")
-    parser.add_argument("--maxLength", type=int, default=int)
-    parser.add_argument("--batchSize", type=int, default=int)
-    parser.add_argument("--epochs", type=int, default=int)
+    parser.add_argument("--modelName", type=str, default="distilbert/distilbert-base-uncased-finetuned-sst-2-english")
+    parser.add_argument("--maxLength", type=int, default=256)
+    parser.add_argument("--batchSize", type=int, default=16)
+    parser.add_argument("--epochs", type=int, default=3)
     
     # architecture
     parser.add_argument("--head", type=str, choices=["mlp"], default="mlp")
-    parser.add_argument("--dropout", type=float, default=float)
+    parser.add_argument("--dropout", type=float, default=0.5)
     
     # optimization
-    parser.add_argument("--lrEncoder", type=float, default=float)
-    parser.add_argument("--lrHead", type=float, default=float)
-    parser.add_argument("--warmupRatio", type=float, default=float)
+    parser.add_argument("--lrEncoder", type=float, default=1e-5)
+    parser.add_argument("--lrHead", type=float, default=1e-5)
+    parser.add_argument("--warmupRatio", type=float, default=0)
     
     # Setup
     parser.add_argument("--seed", type=int, default=42)
@@ -136,7 +172,21 @@ def main():
     trainData.to_csv(trainSplitPath, index=False)
     validData.to_csv(validSplitPath, index=False)
 
-    
+    train(
+        modelName=args.modelName,
+        train_csv=trainSplitPath,
+        val_csv=validSplitPath,
+        test_csv=args.test_csv,
+        outDir=args.outDir,
+        epochs=args.epochs,
+        batchSize=args.batchSize,
+        maxLength=args.maxLength,
+        seed=args.seed,
+        lrEncoder=args.lrEncoder,
+        lrHead=args.lrHead,
+        dropout=args.dropout,
+        warmupRatio=args.warmupRatio
+    )
 
 if __name__ == "__main__":
     main()
