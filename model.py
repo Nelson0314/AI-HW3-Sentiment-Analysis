@@ -56,7 +56,16 @@ class sentimentConfig(PretrainedConfig):
         self.model = model
         self.labelNum = labelNum
         self.head = head
-
+        
+class sentimentClassfier(PreTrainedModel):
+    config_class = sentimentConfig
+    def __init__(self, config):
+        super().__init__(config)
+        self.encoder = AutoModel.from_pretrained(config.model)
+        self.hiddenSize = self.encoder.config.hidden_size
+        self.norm = nn.LayerNorm(self.hiddenSize)
+        self.head = config.head
+        self.labelNum = config.labelNum
 
 def train(
     modelName: str,
@@ -84,9 +93,10 @@ def train(
     testDl = DataLoader(testDs, batchSize, shuffle=True)
     vlaDl = DataLoader(valDs, batchSize, shuffle=True)
     
-    
-    model = AutoModel.from_pretrained()
-    config = sentimentConfig(model)
+    config = sentimentConfig("distilbert/distilbert-base-uncased-finetuned-sst-2-english")
+    classifier = sentimentClassfier(config)
+    print(classifier.hiddenSize)
+
 
 
     
