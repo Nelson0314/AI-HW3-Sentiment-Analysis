@@ -137,7 +137,6 @@ def train(
             pbar.set_postfix(loss=f"{runningLoss / (pbar.n or 1):.4f}")
 
 def main():
-    print(f"正在使用的裝置: {DEVICE}")
     parser = argparse.ArgumentParser()
     # file paths
     parser.add_argument("--train_csv", type=str, default="./dataset/train.csv")

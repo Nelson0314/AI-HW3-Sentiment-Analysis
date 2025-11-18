@@ -47,7 +47,7 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.enabled = True
 
 
-def set_seed(seed: int = 42):
+def setSeed(seed: int = 42):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -78,7 +78,7 @@ def estimate_flops(hidden_size: int, num_layers: int, seq_len: int, batch_size: 
 
 # Dataset
 class SentimentDataset(Dataset):
-    def __init__(self, csv_path: str, tokenizer: AutoTokenizer, max_length: int):
+    def __init__(self, dataPath: str, tokenizer: AutoTokenizer, maxLength: int):
         """
         Step1. Load the CSV file using pandas -> HINT: use pd.read_csv(csv_path)
         Step2. Extract text and label columns -> HINT: df["text"].tolist(), df["label"].tolist()
@@ -89,16 +89,20 @@ class SentimentDataset(Dataset):
             tokenizer: Pre-trained tokenizer from Hugging Face
             max_length: Maximum token length for padding/truncation
         """
-        pass
+        self.data = pd.read_csv(dataPath)
+        self.text = self.data["text"].tolist()
+        self.label = self.data["label"].tolist()
+        self.tokenizer = tokenizer
+        self.maxLength = maxLength
 
     def __len__(self):
         """
         Returns:
             Total number of samples in the dataset -> HINT: len(self.texts)
         """
-        pass
+        return len(self.text)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, index):
         """
         Step1. Select text and label by index -> HINT: text = self.texts[idx]; label = self.labels[idx]
         Step2. Tokenize the text -> HINT: use self.tokenizer with truncation, padding, max_length, return_tensors="pt"
@@ -108,7 +112,11 @@ class SentimentDataset(Dataset):
         Returns:
             One sample (tokenized text and label)
         """
-        pass
+        encoding = self.tokenizer(self.text[index], truncation=True, padding="max_length", max_length=self.maxLength, return_tensors="pt") 
+        label = self.label[index]
+        token = encoding["input_ids"].squeeze(0)
+        mask = encoding["attention_mask"].squeeze(0)
+        return {"input_ids": token, "attention_mask": mask, "labels": torch.tensor(label)}
 
 
 # Model Architecture Components
@@ -144,16 +152,15 @@ class CustomBlock(nn.Module):
 
 # Example of Custom Block
 class CustomMLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim):
+    def __init__(self, inputDim, hiddenDim):
         super().__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.f1 = nn.Linear(inputDim, hiddenDim)
+        self.f2 = nn.Linear(hiddenDim, inputDim)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_dim, input_dim)
-
     def forward(self, x):
-        out = self.fc1(x)
+        out = self.f1(x)
         out = self.relu(out)
-        out = self.fc2(out)
+        out = self.f2(out)
         return out
 
 
@@ -163,8 +170,8 @@ class SentimentConfig(PretrainedConfig):
 
     def __init__(
         self,
-        model_name="...", # name of pre-trained model backbone
-        num_labels=3,     # number of output classes (Negative, Neutral, Positive)
+        model: str, # name of pre-trained model backbone
+        labelNum=3,     # number of output classes (Negative, Neutral, Positive)
         head="mlp",       # classifier head
                           # other hyperparameters
         **kwargs,
@@ -184,7 +191,9 @@ class SentimentConfig(PretrainedConfig):
         These attributes will be automatically saved in config.json
         when you call `config.save_pretrained("./path")`.
         '''
-        pass
+        self.model = model
+        self.labelNum = labelNum
+        self.head = head
 
 
 # Model (DO NOT change the name "SentimentClassifier")
@@ -215,9 +224,16 @@ class SentimentClassifier(PreTrainedModel):
         self.loss_fn = nn.CrossEntropyLoss()
         ...
         """
-        pass
+        self.encoder = AutoModel.from_pretrained(config.model)
+        self.hiddenSize = self.encoder.config.hidden_size
+        self.norm = nn.LayerNorm(self.hiddenSize)
+        self.labelNum = config.labelNum
+        self.headType = config.head
+        self.head = CustomMLP(self.hiddenSize, self.labelNum)
+        self.loss = nn.CrossEntropyLoss()
+        #self.dropout =
 
-    def forward(self, input_ids, attention_mask=None, token_type_ids=None, labels=None):
+    def forward(self, inputIds, attentionMask=None, tokenTypeIds=None, labels=None):
         """
         Defines how the input data flows through the model.
 
@@ -245,7 +261,15 @@ class SentimentClassifier(PreTrainedModel):
             result["loss"] = self.loss_fn(logits, labels)
         return result
         """
-        pass
+        output = self.encoder(input_ids=inputIds, attention_mask=attentionMask)
+        feature = output.last_hidden_state 
+        feature = feature[:, 0, :]
+        #feature = self.dropout(self.norm(feature))
+        logits = self.head(feature)
+        results = {"logits": logits}
+        if labels is not None:
+            results["loss"] = self.loss(logits, labels)
+            return results
 
 
 # Evaluation
@@ -264,7 +288,7 @@ def evaluate(model: nn.Module, dataloader: DataLoader) -> Tuple[float, np.ndarra
         all_pred: predicted labels
     """
     model.eval()  
-    all_y, all_pred = [], []
+    allY, allPred = [], []
     with torch.inference_mode():  
         for batch in dataloader:
             '''
@@ -275,22 +299,25 @@ def evaluate(model: nn.Module, dataloader: DataLoader) -> Tuple[float, np.ndarra
             - Save ground-truth and predicted labels
             '''
             pass
-    acc = accuracy_score(all_y, all_pred)
-    return acc, np.array(all_y), np.array(all_pred)
+    acc = accuracy_score(allY, allPred)
+    return acc, np.array(allY), np.array(allPred)
 
 
 # Training Loop
 def train(
-    model_name: str,
+    modelName: str,
     train_csv: str,
     val_csv: str,
     test_csv: str,
-    out_dir: str,
+    outDir: str,
     epochs: int,
-    batch_size: int,
-    max_length: int,
-                     # any other hyperparameters you want to add (e.g., learning rate, dropout, etc.)
-    seed: int = 42,
+    batchSize: int,
+    maxLength: int,
+    lrEncoder: float,
+    lrHead: float,
+    dropout: float,
+    warmupRatio: float,
+    seed: int = 42
 ):
     '''
     HINTS:
@@ -303,8 +330,8 @@ def train(
     '''
 
     # 1. Setup & Reproducibility
-    set_seed(seed)
-    os.makedirs(out_dir, exist_ok=True)
+    setSeed(seed)
+    os.makedirs(outDir, exist_ok=True)
 
     # 2. Prepare datasets and dataloaders (train, val, test)
     '''
@@ -313,6 +340,13 @@ def train(
     ds = SentimentDataset(...)
     dl = DataLoader(...)
     '''
+    tokenizer = AutoTokenizer.from_pretrained(modelName)
+    trainDs = SentimentDataset(train_csv, tokenizer, maxLength)
+    testDs = SentimentDataset(test_csv, tokenizer, maxLength)
+    valDs = SentimentDataset(val_csv, tokenizer, maxLength)
+    trainDl = DataLoader(trainDs, batchSize, shuffle=True)
+    testDl = DataLoader(testDs, batchSize, shuffle=True)
+    vlaDl = DataLoader(valDs, batchSize, shuffle=True)
     
     # 3. Initialize the model
     '''
@@ -320,6 +354,8 @@ def train(
     config = SentimentConfig(...)
     model = SentimentClassifier(...).to(DEVICE)
     '''
+    config = SentimentConfig(modelName)
+    classifier = SentimentClassifier(config).to(DEVICE)
 
     # 4. Set up optimizer and learning rate scheduler
     '''
@@ -329,15 +365,15 @@ def train(
     '''
 
     # 5. Run the training loop
-    best_val = -1.0
-    ckpt_dir = os.path.join(out_dir, "checkpoint") # DO NOT change the file name
-    os.makedirs(ckpt_dir, exist_ok=True)
-    tokenizer.save_pretrained(ckpt_dir)
+    bestVal = -1.0
+    ckptDir = os.path.join(outDir, "checkpoint") # DO NOT change the file name
+    os.makedirs(ckptDir, exist_ok=True)
+    tokenizer.save_pretrained(ckptDir)
 
     for epoch in range(1, epochs + 1):
-        model.train()  
-        running_loss = 0.0
-        pbar = tqdm(dl_train, desc=f"Epoch {epoch}/{epochs}")
+        classifier.train()  
+        runningLoss = 0.0
+        pbar = tqdm(trainDl, desc=f"Epoch {epoch}/{epochs}")
 
         for batch in pbar:
             '''
@@ -363,21 +399,29 @@ def train(
             - Update running loss
               -> running_loss += loss.item()
             '''
+            inputIds = batch["input_ids"].to(DEVICE)
+            attentionMask = batch["attention_mask"].to(DEVICE)
+            labels = batch["labels"].to(DEVICE)
+
+            output = classifier(inputIds=inputIds, attentionMask=attentionMask, labels=labels)
+            loss = output["loss"]
+            loss.backward()
+            runningLoss +=  loss.item()
 
             # Display
-            pbar.set_postfix(loss=f"{running_loss/(pbar.n or 1):.4f}")
+            pbar.set_postfix(loss=f"{runningLoss / (pbar.n or 1):.4f}")
 
         # Validation Phase
-        val_acc, _, _ = evaluate(model, dl_val)
-        print(f"Epoch {epoch}: Val Acc = {val_acc:.4f}")
+        valAcc, _, _ = evaluate(model, dlVal)
+        print(f"Epoch {epoch}: Val Acc = {valAcc:.4f}")
 
         # Save best model checkpoint
-        if val_acc > best_val:
-            best_val = val_acc
-            model.save_pretrained(ckpt_dir)
+        if valAcc > bestVal:
+            bestVal = valAcc
+            model.save_pretrained(ckptDir)
 
     # 6. Evaluation and save results and metrics
-    best = SentimentClassifier.from_pretrained(ckpt_dir).to(DEVICE)
+    best = SentimentClassifier.from_pretrained(ckptDir).to(DEVICE)
 
     def eval(split, dl):
         acc, y, yhat = evaluate(best, dl)
@@ -404,7 +448,7 @@ def train(
         "test_accuracy": test_acc,
         "params_trainable": int(sum(p.numel() for p in best.parameters() if p.requires_grad))
     }
-    with open(os.path.join(out_dir, "summary.json"), "w") as f:
+    with open(os.path.join(outDir, "summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
     print(json.dumps(summary, indent=2))
 
@@ -426,23 +470,23 @@ def main():
     # file paths
     parser.add_argument("--train_csv", type=str, default="./dataset/train.csv")
     parser.add_argument("--test_csv", type=str, default="./dataset/test.csv")
-    parser.add_argument("--out_dir", type=str, default="./saved_models/") # DO NOT change the file name
-
+    parser.add_argument("--outDir", type=str, default="./saved_models/") # DO NOT change the file name [cite: 1019]
+    
     # model / data
-    parser.add_argument("--model_name", type=str, default="...")
-    parser.add_argument("--max_length", type=int, default=int)
-    parser.add_argument("--batch_size", type=int, default=int)
-    parser.add_argument("--epochs", type=int, default=int)
-
+    parser.add_argument("--modelName", type=str, default="distilbert/distilbert-base-uncased-finetuned-sst-2-english")
+    parser.add_argument("--maxLength", type=int, default=256)
+    parser.add_argument("--batchSize", type=int, default=16)
+    parser.add_argument("--epochs", type=int, default=3)
+    
     # architecture
     parser.add_argument("--head", type=str, choices=["mlp"], default="mlp")
-    parser.add_argument("--dropout", type=float, default=float)
-
+    parser.add_argument("--dropout", type=float, default=0.5)
+    
     # optimization
-    parser.add_argument("--lr_encoder", type=float, default=float)
-    parser.add_argument("--lr_head", type=float, default=float)
-    parser.add_argument("--warmup_ratio", type=float, default=float)
-
+    parser.add_argument("--lrEncoder", type=float, default=1e-5)
+    parser.add_argument("--lrHead", type=float, default=1e-5)
+    parser.add_argument("--warmupRatio", type=float, default=0)
+    
     # Setup
     parser.add_argument("--seed", type=int, default=42)
 
@@ -479,6 +523,30 @@ def main():
         seed=args.seed,
     )
     '''
+    setSeed(args.seed)
+    fullData = pd.read_csv(args.train_csv)
+    trainData, validData = train_test_split(fullData, test_size=0.1, random_state=args.seed, stratify=fullData["label"])
+    os.makedirs(args.outDir, exist_ok=True)
+    trainSplitPath = os.path.join(args.outDir, "train_split.csv")
+    validSplitPath = os.path.join(args.outDir, "val_split.csv")
+    trainData.to_csv(trainSplitPath, index=False)
+    validData.to_csv(validSplitPath, index=False)
+
+    train(
+        modelName=args.modelName,
+        train_csv=trainSplitPath,
+        val_csv=validSplitPath,
+        test_csv=args.test_csv,
+        outDir=args.outDir,
+        epochs=args.epochs,
+        batchSize=args.batchSize,
+        maxLength=args.maxLength,
+        seed=args.seed,
+        lrEncoder=args.lrEncoder,
+        lrHead=args.lrHead,
+        dropout=args.dropout,
+        warmupRatio=args.warmupRatio
+    )
 
 if __name__ == "__main__":
     main()
