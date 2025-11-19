@@ -233,7 +233,7 @@ class SentimentClassifier(PreTrainedModel):
         self.loss = nn.CrossEntropyLoss()
         #self.dropout =
 
-    def forward(self, inputIds, attentionMask=None, tokenTypeIds=None, labels=None):
+    def forward(self, input_ids, attention_mask=None, tokenType_ids=None, labels=None):
         """
         Defines how the input data flows through the model.
 
@@ -261,7 +261,7 @@ class SentimentClassifier(PreTrainedModel):
             result["loss"] = self.loss_fn(logits, labels)
         return result
         """
-        output = self.encoder(input_ids=inputIds, attention_mask=attentionMask)
+        output = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
         feature = output.last_hidden_state 
         feature = feature[:, 0, :]
         #feature = self.dropout(self.norm(feature))
@@ -291,6 +291,7 @@ def evaluate(model: nn.Module, dataloader: DataLoader) -> Tuple[float, np.ndarra
     allY, allPred = [], []
     with torch.inference_mode():  
         for batch in dataloader:
+            
             '''
             HINTS:
             - Move the batch to the correct device (GPU/CPU)
@@ -298,7 +299,16 @@ def evaluate(model: nn.Module, dataloader: DataLoader) -> Tuple[float, np.ndarra
             - Get predicted class from logits
             - Save ground-truth and predicted labels
             '''
-            pass
+            inputIds = batch["input_ids"].to(DEVICE)
+            attentionMask = batch["attention_mask"].to(DEVICE)
+            labels = batch["labels"].to(DEVICE)
+
+            outputs = model(input_ids=inputIds, attention_mask=attentionMask)
+            logits = outputs['logits']
+
+            preds = torch.argmax(logits, dim=-1)
+            allY.extend(labels.cpu().numpy())
+            allPred.extend(preds.cpu().numpy())
     acc = accuracy_score(allY, allPred)
     return acc, np.array(allY), np.array(allPred)
 
@@ -346,7 +356,7 @@ def train(
     valDs = SentimentDataset(val_csv, tokenizer, maxLength)
     trainDl = DataLoader(trainDs, batchSize, shuffle=True)
     testDl = DataLoader(testDs, batchSize, shuffle=True)
-    vlaDl = DataLoader(valDs, batchSize, shuffle=True)
+    valDl = DataLoader(valDs, batchSize, shuffle=True)
     
     # 3. Initialize the model
     '''
@@ -363,6 +373,13 @@ def train(
     optimizer = optim.AdamW(...)
     scheduler = get_linear_schedule_with_warmup(...)
     '''
+    optimizer = optim.AdamW(classifier.parameters(), lr=lrEncoder) 
+    numTrainingSteps = epochs * len(trainDl)
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps = int(numTrainingSteps * warmupRatio),
+        num_training_steps = numTrainingSteps
+    )
 
     # 5. Run the training loop
     bestVal = -1.0
@@ -403,22 +420,28 @@ def train(
             attentionMask = batch["attention_mask"].to(DEVICE)
             labels = batch["labels"].to(DEVICE)
 
-            output = classifier(inputIds=inputIds, attentionMask=attentionMask, labels=labels)
+            optimizer.zero_grad()
+
+            output = classifier(input_ids=inputIds, attention_mask=attentionMask, labels=labels)
             loss = output["loss"]
             loss.backward()
             runningLoss +=  loss.item()
+
+            torch.nn.utils.clip_grad_norm_(classifier.parameters(), 1.0)
+            optimizer.step()
+            scheduler.step()
 
             # Display
             pbar.set_postfix(loss=f"{runningLoss / (pbar.n or 1):.4f}")
 
         # Validation Phase
-        valAcc, _, _ = evaluate(model, dlVal)
+        valAcc, _, _ = evaluate(classifier, valDl)
         print(f"Epoch {epoch}: Val Acc = {valAcc:.4f}")
 
         # Save best model checkpoint
         if valAcc > bestVal:
             bestVal = valAcc
-            model.save_pretrained(ckptDir)
+            classifier.save_pretrained(ckptDir)
 
     # 6. Evaluation and save results and metrics
     best = SentimentClassifier.from_pretrained(ckptDir).to(DEVICE)
@@ -474,18 +497,18 @@ def main():
     
     # model / data
     parser.add_argument("--modelName", type=str, default="distilbert/distilbert-base-uncased-finetuned-sst-2-english")
-    parser.add_argument("--maxLength", type=int, default=256)
-    parser.add_argument("--batchSize", type=int, default=16)
+    parser.add_argument("--maxLength", type=int, default=128)
+    parser.add_argument("--batchSize", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=3)
     
     # architecture
     parser.add_argument("--head", type=str, choices=["mlp"], default="mlp")
-    parser.add_argument("--dropout", type=float, default=0.5)
+    parser.add_argument("--dropout", type=float, default=0.1)
     
     # optimization
     parser.add_argument("--lrEncoder", type=float, default=1e-5)
     parser.add_argument("--lrHead", type=float, default=1e-5)
-    parser.add_argument("--warmupRatio", type=float, default=0)
+    parser.add_argument("--warmupRatio", type=float, default=0.1)
     
     # Setup
     parser.add_argument("--seed", type=int, default=42)
@@ -550,4 +573,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
