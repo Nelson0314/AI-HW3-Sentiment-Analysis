@@ -39,6 +39,8 @@ from transformers import (
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 # Reproducibility
@@ -152,39 +154,40 @@ class CustomBlock(nn.Module):
 
 # Example of Custom Block
 class CustomMLP_2_layer(nn.Module):
-    def __init__(self, inputDim, outputDim):
+    def __init__(self, inputDim, outputDim, dropout):
         super().__init__()
         self.f1 = nn.Linear(inputDim, 24)
         self.f2 = nn.Linear(24, outputDim)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = dropout
     def forward(self, x):
         out = self.f1(x)
         out = self.relu(out)
+        out = self.dropout
         out = self.f2(out)
         return out
     
 class CustomMLP_1_layer(nn.Module):
-    def __init__(self, inputDim, outputDim):
+    def __init__(self, inputDim, outputDim, dropout):
         super().__init__()
         self.f1 = nn.Linear(inputDim, outputDim)
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = dropout
     def forward(self, x):
+        x = self.dropout(x)
         out = self.f1(x)
-        out = self.relu(out)
         return out
 
 
 # Model Config
 class SentimentConfig(PretrainedConfig):
-    model_type = "..."  # describe this model type
+    model_type = "sentimentClassifier"  # describe this model type
 
     def __init__(
         self,
         model: str=None, # name of pre-trained model backbone
         labelNum=3,     # number of output classes (Negative, Neutral, Positive)
         head="mlp2",       # classifier head
+        dropout=0.1,
         **kwargs,      # other hyperparameters
         
     ):
@@ -206,6 +209,7 @@ class SentimentConfig(PretrainedConfig):
         self.model = model
         self.labelNum = labelNum
         self.head = head
+        self.dropout = dropout
 
 
 # Model (DO NOT change the name "SentimentClassifier")
@@ -241,12 +245,12 @@ class SentimentClassifier(PreTrainedModel):
         self.norm = nn.LayerNorm(self.hiddenSize)
         self.labelNum = config.labelNum
         self.headType = config.head
-        if self.headType == 'mlp2':
-            self.head = CustomMLP_2_layer(self.hiddenSize, self.labelNum)
-        if self.headType == 'mlp1':
-            self.head = CustomMLP_1_layer(self.hiddenSize, self.labelNum)
+        self.dropout = nn.Dropout(config.dropout)
         self.loss = nn.CrossEntropyLoss()
-        #self.dropout =
+        if self.headType == 'mlp2':
+            self.head = CustomMLP_2_layer(self.hiddenSize, self.labelNum, self.dropout)
+        if self.headType == 'mlp1':
+            self.head = CustomMLP_1_layer(self.hiddenSize, self.labelNum, self.dropout)
 
     def forward(self, input_ids, attention_mask=None, tokenType_ids=None, labels=None):
         """
@@ -279,7 +283,7 @@ class SentimentClassifier(PreTrainedModel):
         output = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
         feature = output.last_hidden_state 
         feature = feature[:, 0, :]
-        #feature = self.dropout(self.norm(feature))
+        feature = self.dropout(self.norm(feature))
         logits = self.head(feature)
         results = {"logits": logits}
         if labels is not None:
@@ -342,7 +346,8 @@ def train(
     lrHead: float,
     dropout: float,
     warmupRatio: float,
-    seed: int = 42
+    seed: int = 42,
+    head: str = 'mlp2'
 ):
     '''
     HINTS:
@@ -379,8 +384,15 @@ def train(
     config = SentimentConfig(...)
     model = SentimentClassifier(...).to(DEVICE)
     '''
-    config = SentimentConfig(modelName)
+    config = SentimentConfig(model=modelName,head=head, dropout=dropout)
     classifier = SentimentClassifier(config).to(DEVICE)
+    flops = estimate_flops(
+        hidden_size=classifier.encoder.config.hidden_size,
+        num_layers=getattr(classifier.encoder.config, "n_layers", getattr(classifier.encoder.config, "num_hidden_layers", 6)),
+        seq_len=maxLength,
+        batch_size=batchSize
+    )
+    print(f"Estimated FLOPs per training step: {flops:.4f} GFLOPs")
 
     # 4. Set up optimizer and learning rate scheduler
     '''
@@ -388,7 +400,10 @@ def train(
     optimizer = optim.AdamW(...)
     scheduler = get_linear_schedule_with_warmup(...)
     '''
-    optimizer = optim.AdamW(classifier.parameters(), lr=lrEncoder) 
+    optimizer = optim.AdamW([
+        {'params': classifier.encoder.parameters(), 'lr': lrEncoder},
+        {'params': classifier.head.parameters(), 'lr': lrHead}
+    ])
     numTrainingSteps = epochs * len(trainDl)
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
@@ -473,6 +488,27 @@ def train(
         with open(os.path.join(ckpt_dir, f"{split}_report.txt"), "w") as f:
             f.write(rpt)
         '''
+        cm = confusion_matrix(y, yhat, labels=[0,1,2])
+        pd.DataFrame(cm).to_csv(os.path.join(ckptDir, f"{split}_cm.csv"))
+        plt.figure(figsize=(8, 6)) 
+        sns.heatmap(
+            cm, 
+            annot=True,            
+            fmt='d',                
+            cmap='Blues',           
+            xticklabels=["Negative", "Neutral", "Positive"], 
+            yticklabels=["Negative", "Neutral", "Positive"]  
+        )
+        plt.ylabel('True Label')
+        plt.xlabel('Predicted Label')
+        plt.title(f'Confusion Matrix - {split}')
+        
+        save_path = os.path.join(ckptDir, f"{split}_cm.png")
+        plt.savefig(save_path)
+        plt.close() 
+        rpt = classification_report(y, yhat, digits=4, labels=[0,1,2])
+        with open(os.path.join(ckptDir, f"{split}_report.txt"), "w") as f:
+            f.write(rpt)
         return float(acc)
 
     trainAcc = eval("train", trainDl)
@@ -508,17 +544,18 @@ def main():
     # file paths
     parser.add_argument("--allin", action="store_true", help="Use full data for training (submission mode)")
     parser.add_argument("--fullData", type=str, default="./dataset/dataset.csv")
+    parser.add_argument("--test_csv", type=str, default=None)
     parser.add_argument("--outDir", type=str, default="./saved_models/") # DO NOT change the file name [cite: 1019]
     
     # model / data
     parser.add_argument("--testSize", type=float, default=0.1)
-    parser.add_argument("--modelName", type=str, default="distilbert/distilbert-base-uncased-finetuned-sst-2-english")
+    parser.add_argument("--modelName", type=str, default="distilbert/distilbert-base")
     parser.add_argument("--maxLength", type=int, default=128)
     parser.add_argument("--batchSize", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=3)
     
     # architecture
-    parser.add_argument("--head", type=str, choices=["mlp"], default="mlp")
+    parser.add_argument("--head", type=str, choices=["mlp1", "mlp2"], default="mlp2")
     parser.add_argument("--dropout", type=float, default=0.1)
     
     # optimization
@@ -558,7 +595,7 @@ def main():
         epochs=args.epochs,
         batch_size=args.batch_size,
         max_length=args.max_length,
-                                     # any other hyperparameters you want to add (e.g., learning rate, dropout, etc.)
+        # any other hyperparameters you want to add (e.g., learning rate, dropout, etc.)
         seed=args.seed,
     )
     '''
@@ -572,17 +609,20 @@ def main():
         trainData, validData = train_test_split(fullData, test_size=runTestSize, random_state=args.seed, stratify=fullData["label"])
         testData = validData
     else:
-        print(f"Using{args.testSize*100}% to valid...")
+        print(f"Using {args.testSize*100}% to valid...")
         runTestSize = args.testSize
         trainValData, testData = train_test_split(fullData, test_size=runTestSize, random_state=args.seed, stratify=fullData["label"])
         trainData, validData = train_test_split(trainValData, test_size=args.testSize / (1 - args.testSize), random_state=args.seed, stratify=trainValData["label"])
     
     trainSplitPath = os.path.join(args.outDir, "train_split.csv")
     validSplitPath = os.path.join(args.outDir, "val_split.csv")
-    testSplitPath = os.path.join(args.outDir, "test_split.csv")
+    if args.test_csv == None:
+        testSplitPath = os.path.join(args.outDir, "test_split.csv")
+        testData.to_csv(testSplitPath, index=False)
+    else:
+        testSplitPath = args.test_csv
     trainData.to_csv(trainSplitPath, index=False)
     validData.to_csv(validSplitPath, index=False)
-    testData.to_csv(testSplitPath, index=False)
 
     train(
         modelName=args.modelName,
@@ -597,7 +637,8 @@ def main():
         lrEncoder=args.lrEncoder,
         lrHead=args.lrHead,
         dropout=args.dropout,
-        warmupRatio=args.warmupRatio
+        warmupRatio=args.warmupRatio, 
+        head=args.head
     )
 
 if __name__ == "__main__":
