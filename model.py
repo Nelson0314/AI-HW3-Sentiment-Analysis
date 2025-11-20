@@ -492,12 +492,13 @@ def train(
 def main():
     parser = argparse.ArgumentParser()
     # file paths
-    parser.add_argument("--train_csv", type=str, default="./dataset/train.csv")
-    parser.add_argument("--test_csv", type=str, default="./dataset/test.csv")
+    parser.add_argument("--fullData", type=str, default="./dataset/dataset.csv")
+    #parser.add_argument("--train_csv", type=str, default="./dataset/train.csv")
+    #parser.add_argument("--test_csv", type=str, default="./dataset/test.csv")
     parser.add_argument("--outDir", type=str, default="./saved_models/") # DO NOT change the file name [cite: 1019]
     
     # model / data
-    parser.add_argument("--testSize", type=int, default=0.1)
+    parser.add_argument("--testSize", type=float, default=0.1)
     parser.add_argument("--modelName", type=str, default="distilbert/distilbert-base-uncased-finetuned-sst-2-english")
     parser.add_argument("--maxLength", type=int, default=128)
     parser.add_argument("--batchSize", type=int, default=32)
@@ -548,8 +549,8 @@ def main():
         seed=args.seed,
     )
     '''
-    setSeed(args.seed)
-    fullData = pd.read_csv(args.train_csv)
+    setSeed(args.seed) 
+    fullData = pd.read_csv(args.fullData)
     trainData, validData = train_test_split(fullData, test_size=args.testSize, random_state=args.seed, stratify=fullData["label"])
     os.makedirs(args.outDir, exist_ok=True)
     trainSplitPath = os.path.join(args.outDir, "train_split.csv")
