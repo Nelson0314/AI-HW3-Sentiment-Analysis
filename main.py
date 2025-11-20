@@ -152,10 +152,10 @@ class CustomBlock(nn.Module):
 
 # Example of Custom Block
 class CustomMLP(nn.Module):
-    def __init__(self, inputDim, hiddenDim):
+    def __init__(self, inputDim, outputDim):
         super().__init__()
-        self.f1 = nn.Linear(inputDim, hiddenDim)
-        self.f2 = nn.Linear(hiddenDim, inputDim)
+        self.f1 = nn.Linear(inputDim, 32)
+        self.f2 = nn.Linear(32, outputDim)
         self.relu = nn.ReLU()
     def forward(self, x):
         out = self.f1(x)
@@ -170,11 +170,11 @@ class SentimentConfig(PretrainedConfig):
 
     def __init__(
         self,
-        model: str, # name of pre-trained model backbone
+        model: str=None, # name of pre-trained model backbone
         labelNum=3,     # number of output classes (Negative, Neutral, Positive)
         head="mlp",       # classifier head
-                          # other hyperparameters
-        **kwargs,
+        **kwargs,      # other hyperparameters
+        
     ):
         # Always call the parent class initializer first
         super().__init__(**kwargs)
@@ -269,7 +269,7 @@ class SentimentClassifier(PreTrainedModel):
         results = {"logits": logits}
         if labels is not None:
             results["loss"] = self.loss(logits, labels)
-            return results
+        return results
 
 
 # Evaluation
