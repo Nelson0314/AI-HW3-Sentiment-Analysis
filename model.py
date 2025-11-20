@@ -151,7 +151,7 @@ class CustomBlock(nn.Module):
 
 
 # Example of Custom Block
-class CustomMLP(nn.Module):
+class CustomMLP_2_layer(nn.Module):
     def __init__(self, inputDim, outputDim):
         super().__init__()
         self.f1 = nn.Linear(inputDim, 24)
@@ -163,6 +163,17 @@ class CustomMLP(nn.Module):
         out = self.relu(out)
         out = self.f2(out)
         return out
+    
+class CustomMLP_1_layer(nn.Module):
+    def __init__(self, inputDim, outputDim):
+        super().__init__()
+        self.f1 = nn.Linear(inputDim, outputDim)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.1)
+    def forward(self, x):
+        out = self.f1(x)
+        out = self.relu(out)
+        return out
 
 
 # Model Config
@@ -173,7 +184,7 @@ class SentimentConfig(PretrainedConfig):
         self,
         model: str=None, # name of pre-trained model backbone
         labelNum=3,     # number of output classes (Negative, Neutral, Positive)
-        head="mlp",       # classifier head
+        head="mlp2",       # classifier head
         **kwargs,      # other hyperparameters
         
     ):
@@ -230,7 +241,10 @@ class SentimentClassifier(PreTrainedModel):
         self.norm = nn.LayerNorm(self.hiddenSize)
         self.labelNum = config.labelNum
         self.headType = config.head
-        self.head = CustomMLP(self.hiddenSize, self.labelNum)
+        if self.headType == 'mlp2':
+            self.head = CustomMLP_2_layer(self.hiddenSize, self.labelNum)
+        if self.headType == 'mlp1':
+            self.head = CustomMLP_1_layer(self.hiddenSize, self.labelNum)
         self.loss = nn.CrossEntropyLoss()
         #self.dropout =
 
@@ -492,9 +506,8 @@ def train(
 def main():
     parser = argparse.ArgumentParser()
     # file paths
+    parser.add_argument("--allin", action="store_true", help="Use full data for training (submission mode)")
     parser.add_argument("--fullData", type=str, default="./dataset/dataset.csv")
-    #parser.add_argument("--train_csv", type=str, default="./dataset/train.csv")
-    #parser.add_argument("--test_csv", type=str, default="./dataset/test.csv")
     parser.add_argument("--outDir", type=str, default="./saved_models/") # DO NOT change the file name [cite: 1019]
     
     # model / data
@@ -551,18 +564,31 @@ def main():
     '''
     setSeed(args.seed) 
     fullData = pd.read_csv(args.fullData)
-    trainData, validData = train_test_split(fullData, test_size=args.testSize, random_state=args.seed, stratify=fullData["label"])
+    
     os.makedirs(args.outDir, exist_ok=True)
+    if args.allin:
+        print("We all in the dataset for training now...")
+        runTestSize = 0.001 
+        trainData, validData = train_test_split(fullData, test_size=runTestSize, random_state=args.seed, stratify=fullData["label"])
+        testData = validData
+    else:
+        print(f"Using{args.testSize*100}% to valid...")
+        runTestSize = args.testSize
+        trainValData, testData = train_test_split(fullData, test_size=runTestSize, random_state=args.seed, stratify=fullData["label"])
+        trainData, validData = train_test_split(trainValData, test_size=args.testSize / (1 - args.testSize), random_state=args.seed, stratify=trainValData["label"])
+    
     trainSplitPath = os.path.join(args.outDir, "train_split.csv")
     validSplitPath = os.path.join(args.outDir, "val_split.csv")
+    testSplitPath = os.path.join(args.outDir, "test_split.csv")
     trainData.to_csv(trainSplitPath, index=False)
     validData.to_csv(validSplitPath, index=False)
+    testData.to_csv(testSplitPath, index=False)
 
     train(
         modelName=args.modelName,
         train_csv=trainSplitPath,
         val_csv=validSplitPath,
-        test_csv=args.test_csv,
+        test_csv=testSplitPath,
         outDir=args.outDir,
         epochs=args.epochs,
         batchSize=args.batchSize,
