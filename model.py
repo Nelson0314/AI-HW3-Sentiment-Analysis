@@ -163,7 +163,7 @@ class CustomMLP_2_layer(nn.Module):
     def forward(self, x):
         out = self.f1(x)
         out = self.relu(out)
-        out = self.dropout
+        out = self.dropout(x)
         out = self.f2(out)
         return out
     
