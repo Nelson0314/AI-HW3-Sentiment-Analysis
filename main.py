@@ -152,11 +152,12 @@ class CustomBlock(nn.Module):
 
 # Example of Custom Block
 class CustomMLP(nn.Module):
-    def __init__(self, inputDim, outputDim):
+    def __init__(self, inputDim, hiddenDim):
         super().__init__()
-        self.f1 = nn.Linear(inputDim, 32)
-        self.f2 = nn.Linear(32, outputDim)
+        self.f1 = nn.Linear(inputDim, hiddenDim)
+        self.f2 = nn.Linear(hiddenDim, 3)
         self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.1)
     def forward(self, x):
         out = self.f1(x)
         out = self.relu(out)
@@ -229,7 +230,7 @@ class SentimentClassifier(PreTrainedModel):
         self.norm = nn.LayerNorm(self.hiddenSize)
         self.labelNum = config.labelNum
         self.headType = config.head
-        self.head = CustomMLP(self.hiddenSize, self.labelNum)
+        self.head = CustomMLP(self.hiddenSize, 231)
         self.loss = nn.CrossEntropyLoss()
         #self.dropout =
 
@@ -460,15 +461,15 @@ def train(
         '''
         return float(acc)
 
-    train_acc = eval("train", dl_train)
-    val_acc   = eval("val", dl_val)
-    test_acc  = eval("test", dl_test)
+    trainAcc = eval("train", trainDl)
+    valAcc   = eval("val", valDl)
+    testAcc  = eval("test", testDl)
 
     # Save Summary in json format
     summary = {
-        "train_accuracy": train_acc,
-        "val_accuracy": val_acc,
-        "test_accuracy": test_acc,
+        "train_accuracy": trainAcc,
+        "val_accuracy": valAcc,
+        "test_accuracy": testAcc,
         "params_trainable": int(sum(p.numel() for p in best.parameters() if p.requires_grad))
     }
     with open(os.path.join(outDir, "summary.json"), "w") as f:

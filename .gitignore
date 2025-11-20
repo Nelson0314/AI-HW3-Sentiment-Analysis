@@ -5,3 +5,5 @@ NLP_tutorial.pdf
 Codabench_supplementary.pdf
 .venv
 run_tests.py
+saved_models
+.ipynb_checkpoints
