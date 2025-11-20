@@ -544,7 +544,6 @@ def main():
     # file paths
     parser.add_argument("--allin", action="store_true", help="Use full data for training (submission mode)")
     parser.add_argument("--fullData", type=str, default="./dataset/dataset.csv")
-    parser.add_argument("--test_csv", type=str, default=None)
     parser.add_argument("--outDir", type=str, default="./saved_models/") # DO NOT change the file name [cite: 1019]
     
     # model / data
@@ -616,11 +615,8 @@ def main():
     
     trainSplitPath = os.path.join(args.outDir, "train_split.csv")
     validSplitPath = os.path.join(args.outDir, "val_split.csv")
-    if args.test_csv == None:
-        testSplitPath = os.path.join(args.outDir, "test_split.csv")
-        testData.to_csv(testSplitPath, index=False)
-    else:
-        testSplitPath = args.test_csv
+    testSplitPath = os.path.join(args.outDir, "test_split.csv")
+    testData.to_csv(testSplitPath, index=False)
     trainData.to_csv(trainSplitPath, index=False)
     validData.to_csv(validSplitPath, index=False)
 
