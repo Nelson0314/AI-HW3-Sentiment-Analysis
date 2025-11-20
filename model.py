@@ -152,12 +152,12 @@ class CustomBlock(nn.Module):
 
 # Example of Custom Block
 class CustomMLP(nn.Module):
-    def __init__(self, inputDim, hiddenDim):
+    def __init__(self, inputDim, outputDim):
         super().__init__()
-        self.f1 = nn.Linear(inputDim, hiddenDim)
-        self.f2 = nn.Linear(hiddenDim, 3)
+        self.f1 = nn.Linear(inputDim, 24)
+        self.f2 = nn.Linear(24, outputDim)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(0.2)
     def forward(self, x):
         out = self.f1(x)
         out = self.relu(out)
@@ -230,7 +230,7 @@ class SentimentClassifier(PreTrainedModel):
         self.norm = nn.LayerNorm(self.hiddenSize)
         self.labelNum = config.labelNum
         self.headType = config.head
-        self.head = CustomMLP(self.hiddenSize, 231)
+        self.head = CustomMLP(self.hiddenSize, self.labelNum)
         self.loss = nn.CrossEntropyLoss()
         #self.dropout =
 
@@ -481,7 +481,7 @@ def train(
         best.to("cpu"); classifier.to("cpu")
     except Exception:
         pass
-    del best, classifier, tokenizer, optimizer, scheduler, dl_train, dl_val, dl_test
+    del best, classifier, tokenizer, optimizer, scheduler, trainDl, valDl, testDl
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -497,6 +497,7 @@ def main():
     parser.add_argument("--outDir", type=str, default="./saved_models/") # DO NOT change the file name [cite: 1019]
     
     # model / data
+    parser.add_argument("--testSize", type=int, default=0.1)
     parser.add_argument("--modelName", type=str, default="distilbert/distilbert-base-uncased-finetuned-sst-2-english")
     parser.add_argument("--maxLength", type=int, default=128)
     parser.add_argument("--batchSize", type=int, default=32)
@@ -549,7 +550,7 @@ def main():
     '''
     setSeed(args.seed)
     fullData = pd.read_csv(args.train_csv)
-    trainData, validData = train_test_split(fullData, test_size=0.1, random_state=args.seed, stratify=fullData["label"])
+    trainData, validData = train_test_split(fullData, test_size=args.testSize, random_state=args.seed, stratify=fullData["label"])
     os.makedirs(args.outDir, exist_ok=True)
     trainSplitPath = os.path.join(args.outDir, "train_split.csv")
     validSplitPath = os.path.join(args.outDir, "val_split.csv")
