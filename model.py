@@ -252,7 +252,7 @@ class SentimentClassifier(PreTrainedModel):
         if self.headType == 'mlp1':
             self.head = CustomMLP_1_layer(self.hiddenSize, self.labelNum, self.dropout)
 
-    def forward(self, input_ids, attention_mask=None, tokenType_ids=None, labels=None):
+    def forward(self, input_ids, attention_mask=None, token_type_ids=None, labels=None):
         """
         Defines how the input data flows through the model.
 

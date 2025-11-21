@@ -4,19 +4,19 @@ import os
 import sys
 from model import SentimentClassifier
 
-CHECKPOINT_DIR = "./saved_models/checkpoint"
+CHECKPOINT_DIR = "./saved_models/googlebert-exp-3/checkpoint"
 #os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 def main():
     
     tokenizer = AutoTokenizer.from_pretrained(CHECKPOINT_DIR)
         
-    device = "cpu"
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    os.system("cls")
+    print(f"Using device: {device}...")
     model = SentimentClassifier.from_pretrained(CHECKPOINT_DIR).to(device)
     model.eval()
     
-    os.system("cls")
-    print(f"Using device: {device}...")
     print("-" * 30)
 
     # 4. 定義標籤
