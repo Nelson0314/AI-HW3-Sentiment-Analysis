@@ -154,14 +154,14 @@ class CustomBlock(nn.Module):
 class CustomMLP_2_layer(nn.Module):
     def __init__(self, inputDim, outputDim, dropout):
         super().__init__()
-        self.f1 = nn.Linear(inputDim, 24)
-        self.f2 = nn.Linear(24, outputDim)
+        self.f1 = nn.Linear(inputDim, 351)
+        self.f2 = nn.Linear(351, outputDim)
         self.relu = nn.ReLU()
         self.dropout = dropout
     def forward(self, x):
         out = self.f1(x)
         out = self.relu(out)
-        out = self.dropout(x)
+        out = self.dropout(out)
         out = self.f2(out)
         return out
     
