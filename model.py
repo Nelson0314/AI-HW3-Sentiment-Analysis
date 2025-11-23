@@ -194,10 +194,21 @@ class SentimentConfig(PretrainedConfig):
         lrHead: float=1e-5,
         warmupRatio: float=0.1,
         **kwargs,     # other hyperparameters
-        
     ):
         # Always call the parent class initializer first
-        super().__init__(**kwargs)
+        super().__init__(
+            model=model,
+            labelNum=labelNum,
+            head=head,
+            dropout=dropout,
+            maxLength=maxLength,
+            batchSize=batchSize,
+            epochs=epochs,
+            lrEncoder=lrEncoder,
+            lrHead=lrHead,
+            warmupRatio=warmupRatio,
+            **kwargs
+        )
         '''
         Save all hyperparameters to self
         
@@ -554,7 +565,7 @@ def main():
     
     # model / data
     parser.add_argument("--testSize", type=float, default=0.1)
-    parser.add_argument("--modelName", type=str, default="distilbert/distilbert-base")
+    parser.add_argument("--modelName", type=str, default="google-bert/bert-large-uncased")
     parser.add_argument("--maxLength", type=int, default=128)
     parser.add_argument("--batchSize", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=3)
@@ -614,7 +625,7 @@ def main():
         trainData, validData = train_test_split(fullData, test_size=runTestSize, random_state=args.seed, stratify=fullData["label"])
         testData = validData
     else:
-        print(f"Using {args.testSize*100}% to valid...")
+        print(f"Using {args.testSize * 100}% to valid...")
         runTestSize = args.testSize
         trainValData, testData = train_test_split(fullData, test_size=runTestSize, random_state=args.seed, stratify=fullData["label"])
         trainData, validData = train_test_split(trainValData, test_size=args.testSize / (1 - args.testSize), random_state=args.seed, stratify=trainValData["label"])

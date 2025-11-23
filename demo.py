@@ -4,7 +4,7 @@ import os
 import sys
 from model import SentimentClassifier
 
-CHECKPOINT_DIR = "./saved_models/googlebert-exp-3/checkpoint"
+CHECKPOINT_DIR = "./saved_models/googlebert-exp-3-allin-cos-Mlp1/checkpoint"
 #os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 def main():
