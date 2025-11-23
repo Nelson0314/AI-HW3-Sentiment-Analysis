@@ -157,11 +157,11 @@ class CustomMLP_2_layer(nn.Module):
         super().__init__()
         self.f1 = nn.Linear(inputDim, inputDim // 2)
         self.f2 = nn.Linear(inputDim // 2, outputDim)
-        self.relu = nn.GELU()
+        self.gelu = nn.GELU()
         self.dropout = dropout
     def forward(self, x):
         out = self.f1(x)
-        out = self.relu(out)
+        out = self.gelu(out)
         out = self.dropout(out)
         out = self.f2(out)
         return out
@@ -187,7 +187,13 @@ class SentimentConfig(PretrainedConfig):
         labelNum=3,     # number of output classes (Negative, Neutral, Positive)
         head="mlp2",       # classifier head
         dropout=0.1,
-        **kwargs,      # other hyperparameters
+        maxLength: int=128,
+        batchSize: int=32,
+        epochs: int=3,
+        lrEncoder: float=1e-5,
+        lrHead: float=1e-5,
+        warmupRatio: float=0.1,
+        **kwargs,     # other hyperparameters
         
     ):
         # Always call the parent class initializer first
@@ -209,6 +215,12 @@ class SentimentConfig(PretrainedConfig):
         self.labelNum = labelNum
         self.head = head
         self.dropout = dropout
+        self.maxLength = maxLength
+        self.batchSize = batchSize
+        self.epochs = epochs
+        self.lrEncoder = lrEncoder
+        self.lrHead = lrHead
+        self.warmupRatio = warmupRatio
 
 
 # Model (DO NOT change the name "SentimentClassifier")
@@ -383,7 +395,17 @@ def train(
     config = SentimentConfig(...)
     model = SentimentClassifier(...).to(DEVICE)
     '''
-    config = SentimentConfig(model=modelName,head=head, dropout=dropout)
+    config = SentimentConfig(model=modelName,
+        labelNum=3,
+        head=head,
+        dropout=dropout,
+        maxLength=maxLength,
+        batchSize=batchSize,
+        epochs=epochs,
+        lrEncoder=lrEncoder,
+        lrHead=lrHead,
+        warmupRatio=warmupRatio
+    )
     classifier = SentimentClassifier(config).to(DEVICE)
     flops = estimate_flops(
         hidden_size=classifier.encoder.config.hidden_size,
@@ -395,7 +417,7 @@ def train(
 
     # 4. Set up optimizer and learning rate scheduler
     '''
-    Example:
+    Example:    
     optimizer = optim.AdamW(...)
     scheduler = get_linear_schedule_with_warmup(...)
     '''
