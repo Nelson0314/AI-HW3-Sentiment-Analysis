@@ -33,6 +33,7 @@ from transformers import (
     AutoTokenizer,
     AutoModel,
     get_linear_schedule_with_warmup,
+    get_cosine_schedule_with_warmup,
     PretrainedConfig,
     PreTrainedModel
 )
@@ -154,9 +155,9 @@ class CustomBlock(nn.Module):
 class CustomMLP_2_layer(nn.Module):
     def __init__(self, inputDim, outputDim, dropout):
         super().__init__()
-        self.f1 = nn.Linear(inputDim, 351)
-        self.f2 = nn.Linear(351, outputDim)
-        self.relu = nn.ReLU()
+        self.f1 = nn.Linear(inputDim, inputDim // 2)
+        self.f2 = nn.Linear(inputDim // 2, outputDim)
+        self.relu = nn.GELU()
         self.dropout = dropout
     def forward(self, x):
         out = self.f1(x)
@@ -403,7 +404,7 @@ def train(
         {'params': classifier.head.parameters(), 'lr': lrHead}
     ])
     numTrainingSteps = epochs * len(trainDl)
-    scheduler = get_linear_schedule_with_warmup(
+    scheduler = get_cosine_schedule_with_warmup(
         optimizer,
         num_warmup_steps = int(numTrainingSteps * warmupRatio),
         num_training_steps = numTrainingSteps
