@@ -567,16 +567,16 @@ def main():
     parser.add_argument("--testSize", type=float, default=0.1)
     parser.add_argument("--modelName", type=str, default="google-bert/bert-large-uncased")
     parser.add_argument("--maxLength", type=int, default=128)
-    parser.add_argument("--batchSize", type=int, default=32)
-    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--batchSize", type=int, default=8)
+    parser.add_argument("--epochs", type=int, default=5)
     
     # architecture
     parser.add_argument("--head", type=str, choices=["mlp1", "mlp2"], default="mlp2")
-    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--dropout", type=float, default=0.2)
     
     # optimization
     parser.add_argument("--lrEncoder", type=float, default=1e-5)
-    parser.add_argument("--lrHead", type=float, default=1e-5)
+    parser.add_argument("--lrHead", type=float, default=5e-5)
     parser.add_argument("--warmupRatio", type=float, default=0.1)
     
     # Setup
