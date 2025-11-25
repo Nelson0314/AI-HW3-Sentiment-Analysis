@@ -2,28 +2,13 @@
 
 This project implements a Deep Learning-based Sentiment Analysis model to classify social media posts into three categories: Negative, Neutral, and Positive. The solution leverages pre-trained Transformer models (e.g., DistilBERT, BERT) combined with customized classification heads (MLP) and advanced training strategies.
 
-## Project Structure
-
-Please ensure the directory structure is organized as follows:
-
-HW3_{student_id}/
-├── dataset/
-│   ├── dataset.csv          # Original dataset file
-├── saved_models/            # Directory for saving checkpoints and logs
-│   └── checkpoint/          # Best model weights and config
-├── main.py                  # Main script for training and evaluation
-├── model.py                 # Model architecture and dataset class definition
-├── requirements.txt         # List of dependencies
-├── README.md                # This file
-└── {student_id}.pdf         # Final Report
-
 ## Environment Setup
 
 It is recommended to use a virtual environment (e.g., conda or venv) to manage dependencies.
 
 1. Create and activate a virtual environment:
    # Example using conda
-   conda create -n sentiment python=3.10
+   conda create -n sentiment python=3.13.7
    conda activate sentiment
 
 2. Install requirements:
