@@ -6,7 +6,7 @@ This project implements a Deep Learning-based Sentiment Analysis model to classi
 
 It is recommended to use a virtual environment (e.g., conda or venv) to manage dependencies.
 
-1. Create and activate a virtual environment:
+1. Create and activate a virtual environment(with python3):
    ### Example using conda
    ```
    conda create -n sentiment python=3.13.7
