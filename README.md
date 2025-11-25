@@ -14,7 +14,9 @@ It is recommended to use a virtual environment (e.g., conda or venv) to manage d
    ```
 
 3. Install requirements:
+   ```
    pip install -r requirements.txt
+   ```
 
    Dependencies include: torch, transformers, pandas, numpy, scikit-learn, tqdm, matplotlib, seaborn.
 
@@ -22,7 +24,7 @@ It is recommended to use a virtual environment (e.g., conda or venv) to manage d
 
 ### 1. Training (Standard Split)
 To train the model using the standard train/validation/test split (80/10/10), run:
-
+```
 python main.py \
     --modelName "google-bert/bert-large-uncased" \
     --head mlp2 \
@@ -34,18 +36,18 @@ python main.py \
     --maxLength 128 \
     --warmupRatio 0.1 \
     --lrEncoder 1e-5
-  
+```
 or run default setting
-
+```
 python main.py
-
+```
 * --modelName: Name of the pre-trained backbone (e.g., distilbert-base-uncased, google-bert/bert-large-uncased).
 * --head: Classification head type (mlp1 for Linear, mlp2 for Deep).
 * --outDir: Directory to save the best checkpoint and history.
 
 ### 2. Reproducing the Best Result (Submission)
 To maximize performance for the final submission, use the --allin flag to train on the full dataset:
-
+```
 python main.py \
     --modelName "google-bert/bert-large-uncased" \
     --head mlp2 \
@@ -59,5 +61,5 @@ python main.py \
     --lrEncoder 1e-5 \
     --seed 929 \
     --allin
-
+```
 * --allin: Using 99.9% of dataset for training and 0.1% for validation/testing.
