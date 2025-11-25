@@ -42,7 +42,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
 import matplotlib.pyplot as plt
-import seaborn as sns
+from matplotlib.colors import LinearSegmentedColormap
 
 # Reproducibility
 torch.backends.cudnn.benchmark = False
@@ -526,17 +526,38 @@ def train(
             cm = confusion_matrix(y, yhat, labels=[0,1,2])
             pd.DataFrame(cm).to_csv(os.path.join(ckptDir, f"{split}_cm.csv"))
 
-            plt.figure(figsize=(8, 6))
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                    xticklabels=['Negative', 'Neutral', 'Positive'], 
-                    yticklabels=['Negative', 'Neutral', 'Positive'])
-            plt.xlabel('Predicted Label')
-            plt.ylabel('True Label')
-            plt.title(f'Confusion Matrix ({split})')
-            save_path = os.path.join(ckptDir, f"{split}_cm.png")
-            plt.savefig(save_path)
-            plt.close() 
-            print(f"Confusion Matrix saved to {save_path}")
+            try:
+                colors = ["#eff6ff", "#3b82f6"] 
+                cmap = LinearSegmentedColormap.from_list("CustomPastel", colors)
+                fig, ax = plt.subplots(figsize=(8, 6))
+                im = ax.imshow(cm, cmap=cmap)
+                threshold = cm.max() * 0.6
+                for i in range(cm.shape[0]):
+                    for j in range(cm.shape[1]):
+                        val = cm[i, j]
+                        text_color = "white" if val > threshold else "#1e3a8a"
+                        ax.text(j, i, str(val), ha="center", va="center", 
+                            color=text_color, fontsize=14, fontweight='bold')
+                labels_txt = ['Negative', 'Neutral', 'Positive']
+                ax.set_xticks(np.arange(len(labels_txt)))
+                ax.set_yticks(np.arange(len(labels_txt)))
+                ax.set_xticklabels(labels_txt, fontsize=11, color='#6b7280')
+                ax.set_yticklabels(labels_txt, fontsize=11, color='#6b7280')
+                for edge, spine in ax.spines.items():
+                    spine.set_visible(False)
+                ax.tick_params(top=False, bottom=False, left=False, right=False)
+            
+                plt.title(f'Confusion Matrix ({split})', fontsize=14, color='white', weight='bold', pad=20,
+                      bbox=dict(facecolor="#60a5fa", edgecolor='none', boxstyle='round,pad=0.5'))
+                plt.xlabel('Predicted Label', fontsize=12, labelpad=10, color='#374151')
+                plt.ylabel('True Label', fontsize=12, labelpad=10, color='#374151')
+            
+                plt.tight_layout()
+                save_path = os.path.join(ckptDir, f"{split}_cm.png")
+                plt.savefig(save_path, dpi=300)
+                plt.close()
+            except Exception as e:
+                print(f"Plotting failed: {e}")
         
         rpt = classification_report(y, yhat, digits=4, labels=[0,1,2])
         with open(os.path.join(ckptDir, f"{split}_report.txt"), "w") as f:
