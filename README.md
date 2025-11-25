@@ -25,17 +25,7 @@ It is recommended to use a virtual environment (e.g., conda or venv) to manage d
 ### 1. Training (Standard Split)
 To train the model using the standard train/validation/test split (80/10/10), run:
 ```
-python main.py \
-    --modelName "google-bert/bert-large-uncased" \
-    --head mlp2 \
-    --lrHead 5e-5 \
-    --batchSize 8 \
-    --dropout 0.2 \
-    --epochs 5 \
-    --outDir ./saved_models \
-    --maxLength 128 \
-    --warmupRatio 0.1 \
-    --lrEncoder 1e-5
+python main.py --modelName "google-bert/bert-large-uncased" --head mlp2 --lrHead 5e-5 --batchSize 8 --dropout 0.2 --epochs 5 --outDir ./saved_models --maxLength 128 --warmupRatio 0.1 --lrEncoder 1e-5
 ```
 or run default setting
 ```
@@ -48,18 +38,6 @@ python main.py
 ### 2. Reproducing the Best Result (Submission)
 To maximize performance for the final submission, use the --allin flag to train on the full dataset:
 ```
-python main.py \
-    --modelName "google-bert/bert-large-uncased" \
-    --head mlp2 \
-    --lrHead 5e-5 \
-    --batchSize 8 \
-    --dropout 0.2 \
-    --epochs 5 \
-    --outDir ./saved_models \
-    --maxLength 128 \
-    --warmupRatio 0.1 \
-    --lrEncoder 1e-5 \
-    --seed 929 \
-    --allin
+python main.py --modelName "google-bert/bert-large-uncased" --head mlp2 --lrHead 5e-5 --batchSize 8 --dropout 0.2 --epochs 5 --outDir ./saved_models --maxLength 128 --warmupRatio 0.1 --lrEncoder 1e-5 --seed 929 --allin
 ```
 * --allin: Using 99.9% of dataset for training and 0.1% for validation/testing.
