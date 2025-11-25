@@ -555,6 +555,7 @@ def train(
                 plt.tight_layout()
                 save_path = os.path.join(ckptDir, f"{split}_cm.png")
                 plt.savefig(save_path, dpi=300)
+                plt.show()
                 plt.close()
             except Exception as e:
                 print(f"Plotting failed: {e}")
