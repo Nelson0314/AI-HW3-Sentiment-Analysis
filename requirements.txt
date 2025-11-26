@@ -1,3 +1,4 @@
+torch --index-url https://download.pytorch.org/whl/cu130
 accelerate==1.10.1
 datasets==4.0.0
 matplotlib==3.10.6
